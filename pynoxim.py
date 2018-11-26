@@ -167,6 +167,12 @@ def noxim_log(logme):
 	with open('noxim.log','a') as logFile:
 		print(logme,file=logFile)
 
+def get_nowtime():
+	return '{:%Y%m%d_%H%M%S_}'.format(datetime.today())
+
+# Saves the results as a table
+def save_results(results,results_header):
+	np.savetxt(get_nowtime()+"results.csv", results, delimiter=",",header=results_header)
 
 # For mesh only and requires dim_x and dim_y to be multiple of 2, but dim_x>2 or dim_y>2
 def generate_hub_connections(dim_x=4,dim_y=4, use_winoc=False):
@@ -227,7 +233,7 @@ if __name__=='__main__':
 	#WiNoC=True
 	WiNoC=True
 	
-	for core_it in range(10,11):
+	for core_it in range(4,5):
 		dim_mesh=core_it
 		tp=[]
 		delay=[]
@@ -265,9 +271,11 @@ if __name__=='__main__':
 			tp.append(averageIPThroughput)
 			delay.append(globalAverageDelay)
 
+		results_matrix=np.column_stack((injectionL,tp,delay))
+		save_results(results_matrix,'injectionLoad,throughput,delay')
+
 		#
 		noxim_log('=================================================')
-		results_matrix=np.column_stack((injectionL,tp,delay))
 		noxim_log('injectionLoad 	throughput 		delay')
 		noxim_log(str(results_matrix))
 		noxim_log('=================================================')
@@ -285,14 +293,16 @@ if __name__=='__main__':
 	ax1.set_xlim(min(injectionL),max(injectionL))
 	ax1.set_xlabel('Injection Load (flit/cycle)')
 	ax1.grid(True)
-	f1.savefig('f1.png')
-
+	
 	#ax2.set_ylim()
 	ax2.set_ylabel('delay (cycles)')
 	ax2.set_xlim(min(injectionL),max(injectionL))
 	ax2.set_xlabel('Injection Load (flit/cycle)')
 	ax2.grid(True)
-	f2.savefig('f2.png')
+
+	# Export the results
+	f1.savefig(get_nowtime()+'f1.png')
+	f2.savefig(get_nowtime()+'f2.png')
 
 
 '''
