@@ -7,19 +7,11 @@ Pynoxim is written as a course  project (for 'Design and Test of Multi-core chip
 
 
 ## Prerequisites
-1) noxim
-2) Python > 3.5
-3) Matplotlib
-4) pyyaml
-5) numpy
-
-After compling noxim using the script or instructions found here. 
-https://github.com/davidepatti/noxim
-
-Install python > version 3.5
-https://www.python.org/downloads/
-
-Make sure that you have updated version of pip and setuptools.
+1) noxim -- compile it using the script or instructions found here. https://github.com/davidepatti/noxim
+2) Install python > version 3.5. https://www.python.org/downloads/ Make sure that you have updated version of pip and setuptools.
+3) Matplotlib -- python module for plotting
+4) pyyaml -- python module for YAML
+5) numpy -- python module for numerical matrices and analysis.
 
 Run the following command to install remaining dependency.
 
