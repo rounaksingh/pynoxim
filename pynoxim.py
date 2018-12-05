@@ -39,12 +39,12 @@ n_virtual_channels: 4
 #   TABLE_BASED
 # Each of the above labels should match a corresponding
 # implementation in the routingAlgorithms source code directory
-routing_algorithm: XY
+routing_algorithm: DYAD
 routing_table_filename: ""
 
 # Routing specific parameters
 #   dyad_threshold: double
-dyad_threshold: 0.00001
+dyad_threshold: 0.1
 
 # Selection Strategies:
 #   RANDOM
@@ -134,7 +134,7 @@ use_wirxsleep: false
 #   VERBOSE_LOW
 #   VERBOSE_MEDIUM
 #   VERBOSE_HIGH
-verbose_mode: VERBOSE_HIGH
+verbose_mode: VERBOSE_OFF
 
 # Trace
 trace_mode: false
@@ -164,6 +164,7 @@ traffic_table_filename: "t.txt" '''
 
 # It will print the message on screen and also log it in the file
 def noxim_log(logme):
+	print(logme)
 	with open('noxim.log','a') as logFile:
 		print(logme,file=logFile)
 
@@ -215,7 +216,7 @@ if __name__=='__main__':
 	noximBinPath='/home/rn5949/noxim/noxim/bin'
 	noximConfigFilePath='test.yaml'
 
-	annotation_marker=['o','+','s']
+	annotation_marker=['o','+','s','d','^','*','x','<']
 
 	logFile=Path('./noxim.log')
 	if logFile.is_file():
@@ -229,11 +230,11 @@ if __name__=='__main__':
 	
 	# the injection Load is in flit/cycle.
 	# In YAML file, injection load should be in packet/cycle.
-	injectionL= np.arange(0.001,0.3,0.05)
+	injectionL= np.arange(0.15,0.3,0.05)
 	#WiNoC=True
 	WiNoC=True
 	
-	for core_it in range(4,5):
+	for core_it in range(8,10,2):
 		dim_mesh=core_it
 		tp=[]
 		delay=[]
@@ -250,7 +251,7 @@ if __name__=='__main__':
 			
 			# log returned output from noxim
 			#print(logme)
-			#noxim_log(returnedVal)
+			noxim_log(returnedVal)
 
 			#Split the output using '%' as dilimiter
 			splittedStr=returnedVal.split('%')
