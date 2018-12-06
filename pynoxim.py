@@ -5,11 +5,36 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+    
 
-def createNoximYAMLConfig(YAMLConfigFilename='test.yaml', dim_x=4,dim_y=4,use_winoc=False,injectionRate=0.01):
-	YAMLConfig='''
+class Pynoxim:
+    annotation_marker=['o','+','s','d','^','*','x','<']
+    
+    def __init__(self, noxim_bin_path=None, noxim_YAML_config_path='./.test.yaml', noxim_log_path='./.noxim.log'):
+        self.noxim_bin_path=noxim_bin_path
+        self.noxim_YAML_config_path=noxim_YAML_config_path
+        self.noxim_log_path=noxim_log_path
+
+        if self.noxim_bin_path is None or self.noxim_bin_path=='':
+            print("You must enter the noxim binary path.")
+        else:
+            # Test the noxim bin path
+            self.create_noxim_YAML_config()
+            try:
+                print('Finding and Testing Noxim... Please wait...')
+                returnedVal=subprocess.check_output(self.noxim_bin_path+'/noxim'+' -config '+self.noxim_YAML_config_path+' -power '+noxim_bin_path+'/power.yaml',shell=True,stderr=subprocess.STDOUT)
+                returnedVal=returnedVal.decode('utf-8')
+                #print(returnedVal)
+                print('Noxim Found!\nReady!')
+            except:
+                print("Noxim not found.\nPlease compile noxim and provide the correct noxim binary path.")
+
+
+    def create_noxim_YAML_config(self, dim_x=4,dim_y=4,use_winoc=False,injectionRate=0.01):
+        YAMLConfig='''
 # Simple config of a 16x16 mesh with 4 RadioHubs
 # Each parameter is overwritten when corresponding command line value is set
 #
@@ -77,7 +102,7 @@ Hubs:
 # the set of nodes that are connected to it. In this simple topology
 # we have 4 hubs (0-3) connected to the four nodes of the 2x2
 # sub-meshes
-'''+generate_hub_connections(dim_x,dim_y,use_winoc)+'''
+'''+self.generate_hub_connections(dim_x,dim_y,use_winoc)+'''
 
 #
 # Transmission channels configuration
@@ -159,154 +184,173 @@ traffic_distribution: TRAFFIC_RANDOM
 # configuration file
 traffic_table_filename: "t.txt" '''
 
-	with open(YAMLConfigFilename,'w') as configFile:
-		print(YAMLConfig,file=configFile)
+        with open(self.noxim_YAML_config_path,'w') as configFile:
+            print(YAMLConfig,file=configFile)
 
-# It will print the message on screen and also log it in the file
-def noxim_log(logme):
-	print(logme)
-	with open('noxim.log','a') as logFile:
-		print(logme,file=logFile)
+    # It will print the message on screen and also log it in the file
+    def noxim_log(self,log_me,print_log=False,save_log=False):
+        if print_log==True:
+            print(log_me)
+        if save_log==True:
+            if self.noxim_log_path!='':
+                with open(self.noxim_log_path,'a') as logFile:
+                    print(log_me,file=logFile)
 
-def get_nowtime():
-	return '{:%Y%m%d_%H%M%S_}'.format(datetime.today())
+    def delete_log_file(self,log_file_name):
+        temp_log_file_path=Path(log_file_name)
+        if temp_log_file_path.is_file():
+            temp_log_file_path.unlink()
 
-# Saves the results as a table
-def save_results(results,results_header):
-	np.savetxt(get_nowtime()+"results.csv", results, delimiter=",",header=results_header)
 
-# For mesh only and requires dim_x and dim_y to be multiple of 2, but dim_x>2 or dim_y>2
-def generate_hub_connections(dim_x=4,dim_y=4, use_winoc=False):
-	if use_winoc==False:
-		return ''
-	else:
-		num_hub=dim_x/2*dim_y/2
-		hub=[[] for i in range(int(num_hub))]
+    def get_nowtime(self):
+        return '{:%Y%m%d_%H%M%S_}'.format(datetime.today())
 
-		for i in range(dim_x):
-		  for j in range(dim_y):
-		    hub_id=int(dim_y/2)*int(i/2)+int(j/2)
-		    hub[hub_id].append(int(dim_y*i+j))
-		a=''
-		for i in range(int(num_hub)):
-		    a=a+'    '+str(i)+':\n        attached_nodes: '+str(hub[i])+'\n'
-		return a
+    # Saves the results as a table
+    def save_results(self, results,results_header):
+        np.savetxt(self.get_nowtime()+"results.csv", results,  fmt='%.4G', delimiter=",",header=results_header)
+        print('Output CSV file written!')
+
+    # For mesh only and requires dim_x and dim_y to be multiple of 2, but dim_x>2 or dim_y>2
+    def generate_hub_connections(self, dim_x=4,dim_y=4, use_winoc=False):
+        if use_winoc==False:
+            return ''
+        else:
+            num_hub=dim_x/2*dim_y/2
+            hub=[[] for i in range(int(num_hub))]
+
+            for i in range(dim_x):
+                for j in range(dim_y):
+                    hub_id=int(dim_y/2)*int(i/2)+int(j/2)
+                    hub[hub_id].append(int(dim_y*i+j))
+            a=''
+            for i in range(int(num_hub)):
+                a=a+'    '+str(i)+':\n        attached_nodes: '+str(hub[i])+'\n'
+            return a
+    '''
+	    0:
+	        attached_nodes: [0,1,4,5]
+
+	    1:
+	        attached_nodes: [2,3,6, 7]
+
+	    2:
+	        attached_nodes: [8,9,12,13]
+
+	    3:
+	        attached_nodes: [10,11,14,15]
+	'''
+    def get_results(self,output_str):
+        splittedStr=output_str.split('%')
+        # 
+        total_received_packets=int(splittedStr[1].split(':')[1])
+        total_received_flits=int(splittedStr[2].split(':')[1])
+        received_flits_ratio=float(splittedStr[3].split(':')[1])
+        average_wireless_utilization=float(splittedStr[4].split(':')[1])
+        global_average_delay=float(splittedStr[5].split(':')[1])
+        max_delay=float(splittedStr[6].split(':')[1])
+        network_throughput=float(splittedStr[7].split(':')[1])
+        average_IP_throughput=float(splittedStr[8].split(':')[1])
+        total_energy=float(splittedStr[9].split(':')[1])
+        dynamic_energy=float(splittedStr[10].split(':')[1])
+        static_energy=float(splittedStr[11].split(':')[1])
+
+        return [total_received_packets, total_received_flits, received_flits_ratio, average_wireless_utilization, global_average_delay, max_delay, network_throughput, average_IP_throughput, total_energy, dynamic_energy, static_energy]
+
+    def print_result_list(self,result_list):
+        print('''
+Total Received Packets: {}
+Total Received Flits: {}
+Received Flits Ratio: {}
+Average Wireless Utilization: {}
+Global Average Delay: {}
+Max Delay: {}
+Network Throughput: {}
+Average IP Throughput: {}
+Total Energy; {}
+Dynamic Energy: {}
+Static Energy: {}
+'''.format(*result_list))
+
+    def run(self):
+        # Runs the shell command for noxim
+        returnedVal=subprocess.check_output(self.noxim_bin_path+'/noxim'+' -config '+self.noxim_YAML_config_path+' -power '+self.noxim_bin_path+'/power.yaml',shell=True,stderr=subprocess.STDOUT)
+        return returnedVal.decode('utf-8')
+
+    def compare_config_injection_load(self,injection_load_range,mesh_dim_range,use_winoc=False):
+        results=[]
+        for core_it in mesh_dim_range:
+            for i in injection_load_range:
+                self.noxim_log('=================================================\
+                \nRunning Noxim for mesh of '+str(core_it)+'x'+str(core_it)+' with Injection Load of '+'{:.8G}'.format(i)+' at '+str(datetime.now()),print_log=True,save_log=True)
+
+                self.create_noxim_YAML_config(core_it,core_it,use_winoc,i)
+
+                # Runs the shell command for noxim
+                #returnedVal=subprocess.check_output(noxim_bin_path+'/noxim'+' -config '+noximConfigFilePath+' -power '+noxim_bin_path+'/power.yaml',shell=True,stderr=subprocess.STDOUT)
+                returnedVal=self.run()
+
+                # log returned output from noxim
+                #print(returnedVal)
+                #self.noxim_log(returnedVal,save_log=True)
+
+                result=self.get_results(returnedVal)
+                results.append([core_it,i]+result)
+                self.print_result_list(result)
+
+        results_matrix=np.row_stack(results)
+        #save_results(results_matrix,'mesh_dimension,injection_load,throughput,delay')
+        self.save_results(results_matrix,'mesh_dimension,injection_load,total_received_packets, total_received_flits, received_flits_ratio, average_wireless_utilization, \
+global_average_delay, max_delay, network_throughput, average_IP_throughput, total_energy, dynamic_energy, static_energy')
+
+        return results
+
+
 '''
-    0:
-        attached_nodes: [0,1,4,5]
-
-    1:
-        attached_nodes: [2,3,6, 7]
-
-    2:
-        attached_nodes: [8,9,12,13]
-
-    3:
-        attached_nodes: [10,11,14,15]
-'''
-
-
-'''
 
 
 
 
 '''
+
 if __name__=='__main__':
-	noximBinPath='/home/rn5949/noxim/noxim/bin'
-	noximConfigFilePath='test.yaml'
-
-	annotation_marker=['o','+','s','d','^','*','x','<']
-
-	logFile=Path('./noxim.log')
-	if logFile.is_file():
-		logFile.unlink()
-
-	#figures for throughput and delay
-	f1=plt.figure(1)
-	ax1=f1.add_subplot(111)
-	f2=plt.figure(2)
-	ax2=f2.add_subplot(111)
-	
-	# the injection Load is in flit/cycle.
-	# In YAML file, injection load should be in packet/cycle.
-	injectionL= np.arange(0.15,0.3,0.05)
-	#WiNoC=True
-	WiNoC=True
-	
-	for core_it in range(8,10,2):
-		dim_mesh=core_it
-		tp=[]
-		delay=[]
-		for i in injectionL:
-			noxim_log('=================================================\
-			\nRunning Noxim for mesh of '+str(dim_mesh)+'x'+str(dim_mesh)+' with Injection Load of '+str(i)+' at '+str(datetime.now()))
-
-			createNoximYAMLConfig(noximConfigFilePath,dim_mesh,dim_mesh,WiNoC,i)
-			
-			# Runs the shell command for noxim
-			#returnedVal=subprocess.check_output(noximBinPath+'/noxim'+' -config '+noximConfigFilePath+' -power '+noximBinPath+'/power.yaml',shell=True,stderr=subprocess.STDOUT)
-			returnedVal=subprocess.check_output(noximBinPath+'/noxim'+' -config '+noximConfigFilePath+' -power '+noximBinPath+'/power.yaml',shell=True)
-			returnedVal=returnedVal.decode('utf-8')
-			
-			# log returned output from noxim
-			#print(logme)
-			noxim_log(returnedVal)
-
-			#Split the output using '%' as dilimiter
-			splittedStr=returnedVal.split('%')
-
-			totalReceivedPackets=int(splittedStr[1].split(':')[1])
-			totalReceivedFlits=int(splittedStr[2].split(':')[1])
-			receivedFlitsRatio=float(splittedStr[3].split(':')[1])
-			averageWirelessUtilization=float(splittedStr[4].split(':')[1])
-			globalAverageDelay=float(splittedStr[5].split(':')[1])
-			maxDelay=float(splittedStr[6].split(':')[1])
-			networkThroughput=float(splittedStr[7].split(':')[1])
-			averageIPThroughput=float(splittedStr[8].split(':')[1])
-			totalEnergy=float(splittedStr[9].split(':')[1])
-			dynamicEnergy=float(splittedStr[10].split(':')[1])
-			staticEnergy=float(splittedStr[11].split(':')[1])
-
-			# Save throughput and delay
-			tp.append(averageIPThroughput)
-			delay.append(globalAverageDelay)
-
-		results_matrix=np.column_stack((injectionL,tp,delay))
-		save_results(results_matrix,'injectionLoad,throughput,delay')
-
-		#
-		noxim_log('=================================================')
-		noxim_log('injectionLoad 	throughput 		delay')
-		noxim_log(str(results_matrix))
-		noxim_log('=================================================')
-		'''noxim_log('injectionLoad:'+str(injectionL))
-		noxim_log('throughput:'+str(tp))
-		noxim_log('delay:'+str(delay))'''
-
-		# plotting
-		ax1.plot(injectionL,tp,'r'+annotation_marker[core_it-2],injectionL,tp,'k')
-		ax2.plot(injectionL,delay,'r'+annotation_marker[core_it-2],injectionL,delay,'k')
-		#plt.draw()
-	
-	ax1.set_ylim(0, 1)
-	ax1.set_ylabel('averageIPThroughput (flit/cycle/IP)')
-	ax1.set_xlim(min(injectionL),max(injectionL))
-	ax1.set_xlabel('Injection Load (flit/cycle)')
-	ax1.grid(True)
-	
-	#ax2.set_ylim()
-	ax2.set_ylabel('delay (cycles)')
-	ax2.set_xlim(min(injectionL),max(injectionL))
-	ax2.set_xlabel('Injection Load (flit/cycle)')
-	ax2.grid(True)
-
-	# Export the results
-	f1.savefig(get_nowtime()+'f1.png')
-	f2.savefig(get_nowtime()+'f2.png')
+    pn=Pynoxim('~/noxim/noxim/bin')
+    # Testing running noxim for injection load 0.1 to 0.3 steps 0.05 for a mesh of 4x4 and 6x6
+    # Save the results as csv file.
+    a=pn.compare_config_injection_load(np.arange(0.1,0.3,0.05),[4,6])
 
 
-'''
+
+''' Plotting using Matplotlib
+
+    #figures for throughput and delay
+    f1=plt.figure(1)
+    ax1=f1.add_subplot(111)
+    f2=plt.figure(2)
+    ax2=f2.add_subplot(111)
+
+    # plotting
+    ax1.plot(injectionL,tp,'r'+annotation_marker[core_it-2],injectionL,tp,'k')
+    ax2.plot(injectionL,delay,'r'+annotation_marker[core_it-2],injectionL,delay,'k')
+    #plt.draw()
+
+    ax1.set_ylim(0, 1)
+    ax1.set_ylabel('average_IP_throughput (flit/cycle/IP)')
+    ax1.set_xlim(min(injectionL),max(injectionL))
+    ax1.set_xlabel('Injection Load (flit/cycle)')
+    ax1.grid(True)
+
+    #ax2.set_ylim()
+    ax2.set_ylabel('delay (cycles)')
+    ax2.set_xlim(min(injectionL),max(injectionL))
+    ax2.set_xlabel('Injection Load (flit/cycle)')
+    ax2.grid(True)
+
+    # Export the results
+    f1.savefig(get_nowtime()+'f1.png')
+    f2.savefig(get_nowtime()+'f2.png')
+
+
+
 import matplotlib.pyplot as plt
 f1=plt.figure(1)
 ax1=f1.add_subplot(111)
