@@ -2,3 +2,5 @@
 *.log
 *.yaml
 *.csv
+__pycache__
+__pycache__/*
