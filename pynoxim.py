@@ -13,13 +13,11 @@ class Pynoxim:
     ANNOTATION_LINE=['-','--','.-',':']
     ANNOTATION_COLOR=['r','b','g','m']
 
-    def __init__(self, noxim_bin_path=None, noxim_YAML_config_path='./.test.yaml', noxim_log_path='./.noxim.log', display=False, parallel_processing_=False, max_cores_=2):
+    def __init__(self, noxim_bin_path=None, noxim_YAML_config_path='./.test.yaml', noxim_log_path='./.noxim.log', display=False):
         self.noxim_bin_path=noxim_bin_path
         self.noxim_YAML_config_path=noxim_YAML_config_path
         self.noxim_log_path=noxim_log_path
         self.display=display
-        self.parallel_processing=parallel_processing_
-        self.max_cores=max_cores_
 
         if self.display==False:
             matplotlib.use('Agg')
@@ -40,7 +38,7 @@ class Pynoxim:
             except:
                 print("Noxim not found.\nPlease compile noxim and provide the correct noxim binary path.")
 
-    def create_noxim_YAML_config(self, dim_x=4,dim_y=4,use_winoc=False,injection_rate=0.01,RA_index=0,num_virtual_channels=4):
+    def create_noxim_YAML_config(self, dim_x=4,dim_y=4,use_winoc=False,injection_rate=0.01,RA_index=0,num_virtual_channels=4, size_of_packet_in_bits=2048, size_of_flit=32):
         YAMLConfig='''
 # NOC & WIRED CONFIGURATION
 #
@@ -51,7 +49,7 @@ mesh_dim_y: '''+str(dim_y)+'''
 # number of flits for each router buffer
 buffer_depth: 2
 # size of flits, in bits
-flit_size: 32
+flit_size: '''+str(size_of_flit)+'''
 # lenght in mm of router to hub connection
 r2h_link_length: 2.0
 # lenght in mm of router to router connection
@@ -171,8 +169,8 @@ verbose_mode: VERBOSE_LOW
 trace_mode: false
 trace_filename: ""
 
-min_packet_size: 64
-max_packet_size: 64
+min_packet_size: '''+str(int(size_of_packet_in_bits/size_of_flit))+'''
+max_packet_size: '''+str(int(size_of_packet_in_bits/size_of_flit))+'''
 packet_injection_rate: '''+str(injection_rate/64)+'''
 probability_of_retransmission: 0.01
 
@@ -408,32 +406,32 @@ global_average_delay, max_delay, network_throughput, average_IP_throughput, tota
         return results_matrix
 
 
-    def compare_config_pynoxim(self,injection_load_range,mesh_dim_range,virtual_channel_range,routing_algorithm_indices_in_list,use_winoc=False):
+    def compare_config_pynoxim(self,injection_load_range,mesh_dim_range,virtual_channel_range,routing_algorithm_indices_in_list,use_winoc=False, flit_size_range=[32],size_of_packet_in_bits=2048):
         results=[]
         for core_it in mesh_dim_range:
             for i in injection_load_range:
                 for RA_index in routing_algorithm_indices_in_list:
                     for VC_index in virtual_channel_range:
-                        self.noxim_log('=================================================\
-                        \nRunning Noxim for \nmesh of '+str(core_it)+'x'+str(core_it)+' with \nInjection Load of '+'{:.8G}'.format(i)+' with \nRouting Algorithm '+self.get_routing_algorithm(RA_index)+ '\nNumber of Virtual Channels '+str(VC_index)+'\nat '+str(datetime.now()),print_log=True,save_log=True)
+                        for size_of_flit in flit_size_range:
+                            self.noxim_log('=================================================\
+                            \nRunning Noxim for \nmesh of '+str(core_it)+'x'+str(core_it)+' with \nInjection Load of '+'{:.8G}'.format(i)+' with \nRouting Algorithm '+self.get_routing_algorithm(RA_index)+ '\nNumber of Virtual Channels '+str(VC_index)+ '\nSize of flit (in bits): '+str(size_of_flit)+ '\nSize of Packet (in bits): '+str(size_of_packet_in_bits)+'\nat '+str(datetime.now()),print_log=True,save_log=True)
 
-                        self.create_noxim_YAML_config(core_it,core_it,use_winoc,i,RA_index=RA_index, num_virtual_channels=VC_index)
+                            self.create_noxim_YAML_config(core_it,core_it,use_winoc,i,RA_index=RA_index, num_virtual_channels=VC_index, size_of_flit=size_of_flit, size_of_packet_in_bits=size_of_packet_in_bits)
 
-                        # Runs the shell command for noxim
-                        #returnedVal=subprocess.check_output(noxim_bin_path+'/noxim'+' -config '+noximConfigFilePath+' -power '+noxim_bin_path+'/power.yaml',shell=True,stderr=subprocess.STDOUT)
-                        returnedVal=self.run()
+                            # Runs the shell command for noxim
+                            returnedVal=self.run()
 
-                        # log returned output from noxim
-                        #print(returnedVal)
-                        self.noxim_log(returnedVal,save_log=True)
+                            # log returned output from noxim
+                            #print(returnedVal)
+                            self.noxim_log(returnedVal,save_log=True)
 
-                        result=self.get_results(returnedVal)
-                        results.append([core_it,i,RA_index,VC_index]+result)
-                        self.print_result_list(result)
+                            result=self.get_results(returnedVal)
+                            results.append([core_it,i,RA_index,VC_index,size_of_flit,size_of_packet_in_bits]+result)
+                            self.print_result_list(result)
 
         results_matrix=np.row_stack(results)
         #save_results(results_matrix,'mesh_dimension,injection_load,throughput,delay')
-        self.save_results(results_matrix,'mesh_dimension, injection_load, RA_index, VC_index, total_received_packets, total_received_flits, received_flits_ratio, average_wireless_utilization, \
+        self.save_results(results_matrix,'mesh_dimension, injection_load, RA_index, VC_index, size_of_flit, size_of_packet_in_bits, total_received_packets, total_received_flits, received_flits_ratio, average_wireless_utilization, \
 global_average_delay, max_delay, network_throughput, average_IP_throughput, total_energy, dynamic_energy, static_energy')
 
         return results_matrix
@@ -441,6 +439,7 @@ global_average_delay, max_delay, network_throughput, average_IP_throughput, tota
 
     def find_rows_of_results(self,results,parameter_index, parameter_value):
         return results[np.where(results[:,parameter_index]==parameter_value)[0],:]
+
 
 '''
 
@@ -451,8 +450,11 @@ global_average_delay, max_delay, network_throughput, average_IP_throughput, tota
 
 if __name__=='__main__':
     pn=Pynoxim('~/noxim/noxim/bin',display=False)
+    a=pn.compare_config_pynoxim(injection_load_range=np.arange(0.01,0.3,0.05),mesh_dim_range=[8],virtual_channel_range=[2,4,6,8],\
+        routing_algorithm_indices_in_list=[0],use_winoc=False, flit_size_range=[32])
     #a=pn.compare_config_pynoxim(injection_load_range=np.arange(0.01,0.3,0.05),mesh_dim_range=[4,6,8,10],virtual_channel_range=[4],\
-    #    routing_algorithm_indices_in_list=[0],use_winoc=False)
-    a=pn.compare_config_pynoxim(injection_load_range=np.arange(0.01,0.3,0.05),mesh_dim_range=[8],virtual_channel_range=[4],\
-        routing_algorithm_indices_in_list=[0,4,7],use_winoc=True)
+    #    routing_algorithm_indices_in_list=[0],use_winoc=False, flit_size_range=[32])
+    #a=pn.compare_config_pynoxim(injection_load_range=np.arange(0.01,0.3,0.05),mesh_dim_range=[8],virtual_channel_range=[4],\
+    #    routing_algorithm_indices_in_list=[0],use_winoc=False, flit_size_range=[16,32,64,128])
     
+ 
